@@ -1,0 +1,4 @@
+[submodule "Externals/TestInsightFramework"]
+	path = Externals/TestInsightFramework
+	url = https://github.com/henriquewerlang/TestInsightFramework.git
+	branch = main
