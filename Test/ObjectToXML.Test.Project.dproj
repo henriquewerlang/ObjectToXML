@@ -149,6 +149,7 @@
         <DCCReference Include="..\Externals\TestInsightFramework\Test.Insight.Framework.pas"/>
         <DCCReference Include="ObjectToXML.Test.pas"/>
         <DCCReference Include="..\ObjectToXML.pas"/>
+        <None Include="ObjectToXML.Test.Project.todo"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
