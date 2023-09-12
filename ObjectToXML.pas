@@ -2,33 +2,101 @@
 
 interface
 
-uses System.Classes;
+uses System.Classes, System.Rtti, System.Generics.Collections, System.SysUtils;
 
 type
   AttributeAttribute = class(TCustomAttribute);
 
-  EncodingAttribute = class(TCustomAttribute)
+  AttributeValueAttribute = class(TCustomAttribute)
   public
-    constructor Create(const );
+    constructor Create(const Name, Value: String);
   end;
 
   NodeNameAttribute = class(TCustomAttribute)
+  private
+    FName: String;
+  public
+    constructor Create(const Name: String);
+
+    property Name: String read FName write FName;
+  end;
+
+  EncodingAttribute = class(TCustomAttribute)
   public
     constructor Create(const Name: String);
   end;
 
   VersionAttribute = class(TCustomAttribute)
   public
-    constructor Create(const Name: String);
+    constructor Create(const Version: String);
+  end;
+
+  NumberFormatAttribute = class(TCustomAttribute)
+  public
+    constructor Create(const Format: String);
+  end;
+
+  NumberSeparatorAttribute = class(TCustomAttribute)
+  private
+    FDecimalSeparator: Char;
+    FThousandSeparator: Char;
+  public
+    constructor Create(const DecimalSeparator: Char); overload;
+    constructor Create(const ThousandSeparator, DecimalSeparator: Char); overload;
+
+    property DecimalSeparator: Char read FDecimalSeparator write FDecimalSeparator;
+    property ThousandSeparator: Char read FThousandSeparator write FThousandSeparator;
+  end;
+
+  TXMLReader = class
+  private
+    FTextReader: TTextReader;
+  public
+    constructor Create(const TextReader: TTextReader);
+  end;
+
+  TXMLWriter = class
+  private
+    FTextWriter: TTextWriter;
+  public
+    constructor Create(const TextWriter: TTextWriter);
+
+    function EscapeAttributeValue(AChar: Char): String;
+    function EscapeValue(AChar: Char): String;
+
+    procedure WriteAttributeValue(const Value: String);
+    procedure WriteEmptyNode(const NodeName: String);
+    procedure WriteEndNode(const NodeName: String);
+    procedure WriteEscapedValue(const Value: String; const EscapeFunction: TFunc<Char, String>);
+    procedure WriteStartNode(const NodeName: String);
+    procedure WriteValue(const Value: String);
+  end;
+
+  TXMLSerializerReader = class
+  public
+  end;
+
+  TXMLSerializerWriter = class
+  private
+    FContext: TRttiContext;
+
+    procedure WriteNode(const Writer: TXMLWriter; const &Type: TRttiType; const &Object: TObject);
+    procedure WriteProperty(const Writer: TXMLWriter; const &Property: TRttiProperty; const &Object: TObject);
+  public
+    constructor Create;
+
+    destructor Destroy; override;
+
+    procedure Serialize(const Writer: TXMLWriter; const &Object: TObject);
   end;
 
   TObjectToXML = class
   public
-    function Deserialize<T: class>(const XML: String): T;
-    function Deserialize<T: class>(const XML: TStream): T;
-    function Serialize(const &Object: TObject): String;
+    function Deserialize<T: class>(const XML: String): T; overload;
+    function Deserialize<T: class>(const TextReader: TTextReader): T; overload;
+    function Serialize(const &Object: TObject): String; overload;
 
-    procedure Serialize(const &Object: TObject; const Stream: TStream);
+    procedure Serialize(const &Object: TObject; const TextWriter: TTextWriter); overload;
   end;
 
 implementation
@@ -40,33 +108,211 @@ begin
 
 end;
 
-function TObjectToXML.Deserialize<T>(const XML: TStream): T;
+function TObjectToXML.Deserialize<T>(const TextReader: TTextReader): T;
 begin
 
 end;
 
-procedure TObjectToXML.Serialize(const &Object: TObject; const Stream: TStream);
+procedure TObjectToXML.Serialize(const &Object: TObject; const TextWriter: TTextWriter);
 begin
+  var Serializer := TXMLSerializerWriter.Create;
+  var XMLWriter := TXMLWriter.Create(TextWriter);
 
+  try
+    Serializer.Serialize(XMLWriter, &Object);
+  finally
+    Serializer.Free;
+
+    XMLWriter.Free;
+  end;
 end;
 
 function TObjectToXML.Serialize(const &Object: TObject): String;
 begin
+  var StringBuilder := TStringBuilder.Create($FFFF);
+  var TextWriter := TStringWriter.Create(StringBuilder);
 
+  try
+    Serialize(&Object, TextWriter);
+
+    Result := TextWriter.ToString;
+  finally
+    TextWriter.Free;
+
+    StringBuilder.Free;
+  end;
 end;
 
 { NodeNameAttribute }
 
 constructor NodeNameAttribute.Create(const Name: String);
 begin
+  inherited Create;
 
+  FName := Name;
 end;
 
 { VersionAttribute }
 
-constructor VersionAttribute.Create(const Name: String);
+constructor VersionAttribute.Create(const Version: String);
 begin
 
 end;
 
+{ EncodingAttribute }
+
+constructor EncodingAttribute.Create(const Name: String);
+begin
+
+end;
+
+{ AttributeValueAttribute }
+
+constructor AttributeValueAttribute.Create(const Name, Value: String);
+begin
+
+end;
+
+{ NumberFormatAttribute }
+
+constructor NumberFormatAttribute.Create(const Format: String);
+begin
+
+end;
+
+{ TXMLWriter }
+
+constructor TXMLWriter.Create(const TextWriter: TTextWriter);
+begin
+  inherited Create;
+
+  FTextWriter := TextWriter;
+end;
+
+function TXMLWriter.EscapeAttributeValue(AChar: Char): String;
+begin
+  if AChar = '"' then
+    Result := '&quot;'
+  else
+    Result := EscapeValue(AChar);
+end;
+
+function TXMLWriter.EscapeValue(AChar: Char): String;
+begin
+  if AChar = '<' then
+    Result := '&lt;'
+  else if AChar = '>' then
+    Result := '&gt;'
+  else if AChar = '&' then
+    Result := '&amp;'
+  else
+    Result := AChar;
+end;
+
+procedure TXMLWriter.WriteAttributeValue(const Value: String);
+begin
+  FTextWriter.Write('&lt;&gt;&quot;&amp;''');
+  Exit;
+end;
+
+procedure TXMLWriter.WriteEmptyNode(const NodeName: String);
+begin
+  FTextWriter.Write(Format('<%s/>', [NodeName]));
+end;
+
+procedure TXMLWriter.WriteEndNode(const NodeName: String);
+begin
+  FTextWriter.Write(Format('</%s>', [NodeName]));
+end;
+
+procedure TXMLWriter.WriteEscapedValue(const Value: String; const EscapeFunction: TFunc<Char, String>);
+begin
+  for var AChar in Value do
+    FTextWriter.Write(EscapeFunction(AChar));
+end;
+
+procedure TXMLWriter.WriteStartNode(const NodeName: String);
+begin
+  FTextWriter.Write(Format('<%s>', [NodeName]));
+end;
+
+procedure TXMLWriter.WriteValue(const Value: String);
+begin
+  WriteEscapedValue(Value, EscapeValue);
+end;
+
+{ TXMLReader }
+
+constructor TXMLReader.Create(const TextReader: TTextReader);
+begin
+  inherited Create;
+
+  FTextReader := TextReader;
+end;
+
+{ TXMLSerializerWriter }
+
+constructor TXMLSerializerWriter.Create;
+begin
+  inherited;
+
+  FContext := TRttiContext.Create;
+end;
+
+destructor TXMLSerializerWriter.Destroy;
+begin
+  FContext.Free;
+
+  inherited;
+end;
+
+procedure TXMLSerializerWriter.Serialize(const Writer: TXMLWriter; const &Object: TObject);
+begin
+  WriteNode(Writer, FContext.GetType(&Object.ClassType), &Object);
+end;
+
+procedure TXMLSerializerWriter.WriteNode(const Writer: TXMLWriter; const &Type: TRttiType; const &Object: TObject);
+begin
+  var NodeName: String;
+  var NodeNameAttribute := &Type.GetAttribute<NodeNameAttribute>;
+
+  if Assigned(NodeNameAttribute) then
+    NodeName := NodeNameAttribute.Name
+  else
+    NodeName := &Type.Name.SubString(1);
+
+  Writer.WriteStartNode(NodeName);
+
+  for var AProperty in &Type.GetProperties do
+    WriteProperty(Writer, AProperty, &Object);
+
+  Writer.WriteEndNode(NodeName);
+end;
+
+procedure TXMLSerializerWriter.WriteProperty(const Writer: TXMLWriter; const &Property: TRttiProperty; const &Object: TObject);
+begin
+  Writer.WriteStartNode(&Property.Name);
+
+  Writer.WriteValue(&Property.GetValue(&Object).ToString);
+
+  Writer.WriteEndNode(&Property.Name);
+end;
+
+{ NumberSeparatorAttribute }
+
+constructor NumberSeparatorAttribute.Create(const ThousandSeparator, DecimalSeparator: Char);
+begin
+  Create(DecimalSeparator);
+
+  FThousandSeparator := ThousandSeparator;
+end;
+
+constructor NumberSeparatorAttribute.Create(const DecimalSeparator: Char);
+begin
+  inherited Create;
+
+  FDecimalSeparator := DecimalSeparator;
+end;
+
 end.
+

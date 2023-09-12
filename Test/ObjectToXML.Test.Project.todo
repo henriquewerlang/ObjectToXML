@@ -1,3 +1,6 @@
-﻿{TODO : Controle de formatação de valores inteiros e flutuantes}
+﻿{TODO : Criar um esquema para o programador controlar a serialização, como é no JSON Serializer}
+{TODO : Fazer o controle do Stored para gerar o nó ou não}
+{TODO : Controle de embelezamento do XML}
+{TODO : Controle de formatação de valores inteiros e flutuantes}
 
-{TODO : Controle de formatação de datas}
+{TODO : Controle de formatação de datas e valores via atributo}
