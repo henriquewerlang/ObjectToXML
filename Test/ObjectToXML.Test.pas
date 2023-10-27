@@ -44,6 +44,12 @@ type
     procedure WhenWriteAnAttributeValueMustEscapeTheValueAsExpected;
     [Test]
     procedure WhenWriteEscapedValuesMustWriteTheValueAsExpected;
+    [Test]
+    procedure WhenWriteADoubleValueMustWriteTheValueAsExpected;
+    [Test]
+    procedure WhenWriteAnIntegerValueMustWriteTheValueAsExpected;
+    [Test]
+    procedure WhenWriteAnUnsigedIntegerValueMustWriteTheValueAsExpected;
   end;
 
   [TestFixture]
@@ -63,6 +69,14 @@ type
     procedure WhenSerializeAnObjectWithTheNodeNameAttributeMustCreateTheNodeDocumentoWithTheNameInTheAttribute;
     [Test]
     procedure WhenSerializeAnObjectMustSerializeThePropertiesInTheObject;
+    [Test]
+    procedure WhenSerializeAnObjectWithAnEmptyValueMustWriteTheXMLAsExpected;
+    [Test]
+    procedure WhenSerializeAnObjectWithFloatNumberMustWritTheXMLWithLocalizedFormat;
+    [Test]
+    procedure WhenAnPropertyHasTheNumberFormatAttributeMustWriteTheXMLWithThisFormatAsExpected;
+    [Test]
+    procedure WHenTheObjectHasTheNumberSeparatorAttributeMustWriteTheFloatValuesAsExpected;
   end;
 
 {$M+}
@@ -91,21 +105,40 @@ type
     property NodeString: String read FNodeString write FNodeString;
   end;
 
-  [NumberSeparator('T', 'D')]
-  TObjectWithFloatProperty = class
+  TObjectEmptyNode = class
   private
-    FValue1: Double;
-    FValue2: Double;
-    FValue3: Double;
+    FEmptyNode: String;
+  published
+    property EmptyNode: String read FEmptyNode write FEmptyNode;
+  end;
+
+  TObjectFloatNode = class
+  private
+    FFloatNode: Double;
+  published
+    property FloatNode: Double read FFloatNode write FFloatNode;
+  end;
+
+  TObjectNumberFormat = class
+  private
+    FValue: Double;
   published
     [NumberFormat('000.000')]
-    property Value1: Double read FValue1 write FValue1;
-    [NumberFormat('#,##0.000')]
-    property Value2: Double read FValue2 write FValue2;
-    property Value3: Double read FValue3 write FValue3;
+    property Value: Double read FValue write FValue;
+  end;
+
+  [NumberSeparator('T', 'D')]
+  TObjectNumberSeparator = class
+  private
+    FValue: Double;
+  published
+    [NumberFormat('#,##0.0')]
+    property Value: Double read FValue write FValue;
   end;
 
 implementation
+
+uses System.SysUtils;
 
 { TObjectToXMLTest }
 
@@ -160,6 +193,13 @@ begin
   FStringWriter.Free;
 end;
 
+procedure TXMLWriterTest.WhenWriteADoubleValueMustWriteTheValueAsExpected;
+begin
+  FXMLWriter.WriteValue(123.456);
+
+  Assert.AreEqual(FloatToStr(123.456), FStringWriter.ToString);
+end;
+
 procedure TXMLWriterTest.WhenWriteAnAttributeValueMustEscapeTheValueAsExpected;
 begin
   FXMLWriter.WriteAttributeValue('<>"&''');
@@ -179,6 +219,22 @@ begin
   FXMLWriter.WriteEndNode('MyNode');
 
   Assert.AreEqual('</MyNode>', FStringWriter.ToString);
+end;
+
+procedure TXMLWriterTest.WhenWriteAnIntegerValueMustWriteTheValueAsExpected;
+begin
+  FXMLWriter.WriteValue(-123);
+
+  Assert.AreEqual('-123', FStringWriter.ToString);
+end;
+
+procedure TXMLWriterTest.WhenWriteAnUnsigedIntegerValueMustWriteTheValueAsExpected;
+begin
+  var Value: UInt64 := 123;
+
+  FXMLWriter.WriteValue(Value);
+
+  Assert.AreEqual('123', FStringWriter.ToString);
 end;
 
 procedure TXMLWriterTest.WhenWriteAStartNodeMustWriteTheXMLLikeExpected;
@@ -234,6 +290,18 @@ begin
   FXMLWriter.Free;
 end;
 
+procedure TXMLSerializerWriterTest.WhenAnPropertyHasTheNumberFormatAttributeMustWriteTheXMLWithThisFormatAsExpected;
+begin
+  var AnObject := TObjectNumberFormat.Create;
+  AnObject.Value := 123.4;
+
+  FXMLSerializerWriter.Serialize(FXMLWriter, AnObject);
+
+  Assert.AreEqual(Format('<ObjectNumberFormat><Value>%s</Value></ObjectNumberFormat>', [FormatFloat('000.000', AnObject.Value)]), FStringWriter.ToString);
+
+  AnObject.Free;
+end;
+
 procedure TXMLSerializerWriterTest.WhenSerializeAnObjectMustCreateTheDocumentElementWithTheNameOfTheClass;
 begin
   var Empty := TEmptyDocument.Create;
@@ -260,6 +328,29 @@ begin
   AnObject.Free;
 end;
 
+procedure TXMLSerializerWriterTest.WhenSerializeAnObjectWithAnEmptyValueMustWriteTheXMLAsExpected;
+begin
+  var AnObject := TObjectEmptyNode.Create;
+
+  FXMLSerializerWriter.Serialize(FXMLWriter, AnObject);
+
+  Assert.AreEqual('<ObjectEmptyNode><EmptyNode/></ObjectEmptyNode>', FStringWriter.ToString);
+
+  AnObject.Free;
+end;
+
+procedure TXMLSerializerWriterTest.WhenSerializeAnObjectWithFloatNumberMustWritTheXMLWithLocalizedFormat;
+begin
+  var AnObject := TObjectFloatNode.Create;
+  AnObject.FloatNode := 123.456;
+
+  FXMLSerializerWriter.Serialize(FXMLWriter, AnObject);
+
+  Assert.AreEqual(Format('<ObjectFloatNode><FloatNode>%s</FloatNode></ObjectFloatNode>', [FloatToStr(AnObject.FloatNode)]), FStringWriter.ToString);
+
+  AnObject.Free;
+end;
+
 procedure TXMLSerializerWriterTest.WhenSerializeAnObjectWithTheNodeNameAttributeMustCreateTheNodeDocumentoWithTheNameInTheAttribute;
 begin
   var Empty := TEmptyDocumentWithNodeNameAttribute.Create;
@@ -269,6 +360,21 @@ begin
   Assert.AreEqual('<MyDocument></MyDocument>', FStringWriter.ToString);
 
   Empty.Free;
+end;
+
+procedure TXMLSerializerWriterTest.WHenTheObjectHasTheNumberSeparatorAttributeMustWriteTheFloatValuesAsExpected;
+begin
+  var AnObject := TObjectNumberSeparator.Create;
+  AnObject.Value := 123456.78901;
+  var AFormat := TFormatSettings.Invariant;
+  AFormat.DecimalSeparator := 'D';
+  AFormat.ThousandSeparator := 'T';
+
+  FXMLSerializerWriter.Serialize(FXMLWriter, AnObject);
+
+  Assert.AreEqual(Format('<ObjectNumberSeparator><Value>%s</Value></ObjectNumberSeparator>', [FormatFloat('#,0.0', AnObject.Value, AFormat)]), FStringWriter.ToString);
+
+  AnObject.Free;
 end;
 
 end.

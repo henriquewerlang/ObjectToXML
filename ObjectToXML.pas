@@ -5,11 +5,15 @@ interface
 uses System.Classes, System.Rtti, System.Generics.Collections, System.SysUtils;
 
 type
-  AttributeAttribute = class(TCustomAttribute);
-
   AttributeValueAttribute = class(TCustomAttribute)
+  private
+    FName: String;
+    FValue: String;
   public
     constructor Create(const Name, Value: String);
+
+    property Name: String read FName write FName;
+    property Value: String read FValue write FValue;
   end;
 
   NodeNameAttribute = class(TCustomAttribute)
@@ -22,18 +26,30 @@ type
   end;
 
   EncodingAttribute = class(TCustomAttribute)
+  private
+    FName: String;
   public
     constructor Create(const Name: String);
+
+    property Name: String read FName write FName;
   end;
 
   VersionAttribute = class(TCustomAttribute)
+  private
+    FVersion: String;
   public
     constructor Create(const Version: String);
+
+    property Version: String read FVersion write FVersion;
   end;
 
   NumberFormatAttribute = class(TCustomAttribute)
+  private
+    FFormat: String;
   public
     constructor Create(const Format: String);
+
+    property Format: String read FFormat write FFormat;
   end;
 
   NumberSeparatorAttribute = class(TCustomAttribute)
@@ -69,7 +85,10 @@ type
     procedure WriteEndNode(const NodeName: String);
     procedure WriteEscapedValue(const Value: String; const EscapeFunction: TFunc<Char, String>);
     procedure WriteStartNode(const NodeName: String);
-    procedure WriteValue(const Value: String);
+    procedure WriteValue(const Value: Extended); overload;
+    procedure WriteValue(const Value: Int64); overload;
+    procedure WriteValue(const Value: String); overload;
+    procedure WriteValue(const Value: UInt64); overload;
   end;
 
   TXMLSerializerReader = class
@@ -156,28 +175,37 @@ end;
 
 constructor VersionAttribute.Create(const Version: String);
 begin
+  inherited Create;
 
+  FVersion := Version;
 end;
 
 { EncodingAttribute }
 
 constructor EncodingAttribute.Create(const Name: String);
 begin
+  inherited Create;
 
+  FName := Name;
 end;
 
 { AttributeValueAttribute }
 
 constructor AttributeValueAttribute.Create(const Name, Value: String);
 begin
+  inherited Create;
 
+  FName := Name;
+  FValue := Value;
 end;
 
 { NumberFormatAttribute }
 
 constructor NumberFormatAttribute.Create(const Format: String);
 begin
+  inherited Create;
 
+  FFormat := Format;
 end;
 
 { TXMLWriter }
@@ -236,9 +264,24 @@ begin
   FTextWriter.Write(Format('<%s>', [NodeName]));
 end;
 
+procedure TXMLWriter.WriteValue(const Value: Int64);
+begin
+  WriteValue(IntToStr(Value));
+end;
+
+procedure TXMLWriter.WriteValue(const Value: Extended);
+begin
+  WriteValue(FloatToStr(Value));
+end;
+
 procedure TXMLWriter.WriteValue(const Value: String);
 begin
   WriteEscapedValue(Value, EscapeValue);
+end;
+
+procedure TXMLWriter.WriteValue(const Value: UInt64);
+begin
+  WriteValue(IntToStr(Value));
 end;
 
 { TXMLReader }
@@ -290,12 +333,46 @@ begin
 end;
 
 procedure TXMLSerializerWriter.WriteProperty(const Writer: TXMLWriter; const &Property: TRttiProperty; const &Object: TObject);
+var
+  PropertyValue: TValue;
+
+  function GetFormatSettings: TFormatSettings;
+  begin
+    Result := FormatSettings;
+  end;
+
+  procedure WriteFloat;
+  begin
+    var FormatAttribute := &Property.GetAttribute<NumberFormatAttribute>;
+
+    if Assigned(FormatAttribute) then
+      Writer.WriteValue(FormatFloat(FormatAttribute.Format, PropertyValue.AsExtended, GetFormatSettings))
+    else
+      Writer.WriteValue(PropertyValue.AsExtended);
+  end;
+
+  procedure WriteValue;
+  begin
+    case PropertyValue.Kind of
+      tkFloat: WriteFloat;
+      else Writer.WriteValue(PropertyValue.ToString);
+    end;
+  end;
+
 begin
-  Writer.WriteStartNode(&Property.Name);
+  var PropertyName := &Property.Name;
+  PropertyValue := &Property.GetValue(&Object);
 
-  Writer.WriteValue(&Property.GetValue(&Object).ToString);
+  if (PropertyValue.Kind in [tkString, tkLString, tkUString, tkWideString]) and PropertyValue.AsString.IsEmpty then
+    Writer.WriteEmptyNode(PropertyName)
+  else
+  begin
+    Writer.WriteStartNode(PropertyName);
 
-  Writer.WriteEndNode(&Property.Name);
+    WriteValue;
+
+    Writer.WriteEndNode(PropertyName);
+  end;
 end;
 
 { NumberSeparatorAttribute }
