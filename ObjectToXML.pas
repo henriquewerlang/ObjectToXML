@@ -336,17 +336,29 @@ procedure TXMLSerializerWriter.WriteProperty(const Writer: TXMLWriter; const &Pr
 var
   PropertyValue: TValue;
 
-  function GetFormatSettings: TFormatSettings;
-  begin
-    Result := FormatSettings;
-  end;
-
   procedure WriteFloat;
+  var
+    SeparatorAttribute: NumberSeparatorAttribute;
+
+    function GetFormatSettings: TFormatSettings;
+    begin
+      Result := FormatSettings;
+
+      if Assigned(SeparatorAttribute) then
+      begin
+        Result.DecimalSeparator := SeparatorAttribute.DecimalSeparator;
+        Result.ThousandSeparator := SeparatorAttribute.ThousandSeparator;
+      end;
+    end;
+
   begin
     var FormatAttribute := &Property.GetAttribute<NumberFormatAttribute>;
+    SeparatorAttribute := &Property.Parent.GetAttribute<NumberSeparatorAttribute>;
 
     if Assigned(FormatAttribute) then
       Writer.WriteValue(FormatFloat(FormatAttribute.Format, PropertyValue.AsExtended, GetFormatSettings))
+    else if Assigned(SeparatorAttribute) then
+      Writer.WriteValue(FloatToStr(PropertyValue.AsExtended, GetFormatSettings))
     else
       Writer.WriteValue(PropertyValue.AsExtended);
   end;

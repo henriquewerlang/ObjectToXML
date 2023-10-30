@@ -77,6 +77,8 @@ type
     procedure WhenAnPropertyHasTheNumberFormatAttributeMustWriteTheXMLWithThisFormatAsExpected;
     [Test]
     procedure WHenTheObjectHasTheNumberSeparatorAttributeMustWriteTheFloatValuesAsExpected;
+    [Test]
+    procedure WHenTheObjectHasOnlyTheNumberSeparatorAttributeMustWriteTheFloatValuesAsExpected;
   end;
 
 {$M+}
@@ -133,6 +135,14 @@ type
     FValue: Double;
   published
     [NumberFormat('#,##0.0')]
+    property Value: Double read FValue write FValue;
+  end;
+
+  [NumberSeparator('T', 'D')]
+  TObjectNumberSeparatorOnly = class
+  private
+    FValue: Double;
+  published
     property Value: Double read FValue write FValue;
   end;
 
@@ -360,6 +370,21 @@ begin
   Assert.AreEqual('<MyDocument></MyDocument>', FStringWriter.ToString);
 
   Empty.Free;
+end;
+
+procedure TXMLSerializerWriterTest.WHenTheObjectHasOnlyTheNumberSeparatorAttributeMustWriteTheFloatValuesAsExpected;
+begin
+  var AnObject := TObjectNumberSeparatorOnly.Create;
+  AnObject.Value := 123456.78901;
+  var AFormat := TFormatSettings.Invariant;
+  AFormat.DecimalSeparator := 'D';
+  AFormat.ThousandSeparator := 'T';
+
+  FXMLSerializerWriter.Serialize(FXMLWriter, AnObject);
+
+  Assert.AreEqual(Format('<ObjectNumberSeparatorOnly><Value>%s</Value></ObjectNumberSeparatorOnly>', [FloatToStr(AnObject.Value, AFormat)]), FStringWriter.ToString);
+
+  AnObject.Free;
 end;
 
 procedure TXMLSerializerWriterTest.WHenTheObjectHasTheNumberSeparatorAttributeMustWriteTheFloatValuesAsExpected;
