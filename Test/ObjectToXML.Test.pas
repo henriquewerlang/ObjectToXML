@@ -76,9 +76,13 @@ type
     [Test]
     procedure WhenAnPropertyHasTheNumberFormatAttributeMustWriteTheXMLWithThisFormatAsExpected;
     [Test]
-    procedure WHenTheObjectHasTheNumberSeparatorAttributeMustWriteTheFloatValuesAsExpected;
+    procedure WhenTheObjectHasTheNumberSeparatorAttributeMustWriteTheFloatValuesAsExpected;
     [Test]
-    procedure WHenTheObjectHasOnlyTheNumberSeparatorAttributeMustWriteTheFloatValuesAsExpected;
+    procedure WhenTheObjectHasOnlyTheNumberSeparatorAttributeMustWriteTheFloatValuesAsExpected;
+    [Test]
+    procedure WhenAPropertyAsTheNodeNameAttributeMustWriteTheXMLWithThisNodeName;
+    [Test]
+    procedure WhenTheObjectAsAPropertyThatIsAnotherObjectMustWriteTheXMLAsExpected;
   end;
 
 {$M+}
@@ -144,6 +148,22 @@ type
     FValue: Double;
   published
     property Value: Double read FValue write FValue;
+  end;
+
+  [NodeName('node')]
+  TObjectPropertyWithNodeName = class
+  private
+    FMyNode: String;
+  published
+    [NodeName('node')]
+    property MyNode: String read FMyNode write FMyNode;
+  end;
+
+  TObjectWithObjectProperty = class
+  private
+    FAnotherObject: TObjectPropertyWithNodeName;
+  published
+    property AnotherObject: TObjectPropertyWithNodeName read FAnotherObject write FAnotherObject;
   end;
 
 implementation
@@ -312,6 +332,17 @@ begin
   AnObject.Free;
 end;
 
+procedure TXMLSerializerWriterTest.WhenAPropertyAsTheNodeNameAttributeMustWriteTheXMLWithThisNodeName;
+begin
+  var AnObject := TObjectPropertyWithNodeName.Create;
+
+  FXMLSerializerWriter.Serialize(FXMLWriter, AnObject);
+
+  Assert.AreEqual('<node><node/></node>', FStringWriter.ToString);
+
+  AnObject.Free;
+end;
+
 procedure TXMLSerializerWriterTest.WhenSerializeAnObjectMustCreateTheDocumentElementWithTheNameOfTheClass;
 begin
   var Empty := TEmptyDocument.Create;
@@ -372,7 +403,21 @@ begin
   Empty.Free;
 end;
 
-procedure TXMLSerializerWriterTest.WHenTheObjectHasOnlyTheNumberSeparatorAttributeMustWriteTheFloatValuesAsExpected;
+procedure TXMLSerializerWriterTest.WhenTheObjectAsAPropertyThatIsAnotherObjectMustWriteTheXMLAsExpected;
+begin
+  var AnObject := TObjectWithObjectProperty.Create;
+  AnObject.AnotherObject := TObjectPropertyWithNodeName.Create;
+
+  FXMLSerializerWriter.Serialize(FXMLWriter, AnObject);
+
+  Assert.AreEqual('<ObjectWithObjectProperty><AnotherObject><node/></AnotherObject></ObjectWithObjectProperty>', FStringWriter.ToString);
+
+  AnObject.AnotherObject.Free;
+
+  AnObject.Free;
+end;
+
+procedure TXMLSerializerWriterTest.WhenTheObjectHasOnlyTheNumberSeparatorAttributeMustWriteTheFloatValuesAsExpected;
 begin
   var AnObject := TObjectNumberSeparatorOnly.Create;
   AnObject.Value := 123456.78901;
@@ -387,7 +432,7 @@ begin
   AnObject.Free;
 end;
 
-procedure TXMLSerializerWriterTest.WHenTheObjectHasTheNumberSeparatorAttributeMustWriteTheFloatValuesAsExpected;
+procedure TXMLSerializerWriterTest.WhenTheObjectHasTheNumberSeparatorAttributeMustWriteTheFloatValuesAsExpected;
 begin
   var AnObject := TObjectNumberSeparator.Create;
   AnObject.Value := 123456.78901;

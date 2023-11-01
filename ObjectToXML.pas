@@ -99,7 +99,10 @@ type
   private
     FContext: TRttiContext;
 
+    function GetNodeName(const RttiObject: TRttiNamedObject): String;
+
     procedure WriteNode(const Writer: TXMLWriter; const &Type: TRttiType; const &Object: TObject);
+    procedure WriteProperties(const Writer: TXMLWriter; const &Type: TRttiType; const &Object: TObject);
     procedure WriteProperty(const Writer: TXMLWriter; const &Property: TRttiProperty; const &Object: TObject);
   public
     constructor Create;
@@ -309,6 +312,18 @@ begin
   inherited;
 end;
 
+function TXMLSerializerWriter.GetNodeName(const RttiObject: TRttiNamedObject): String;
+begin
+  var NodeNameAttribute := RttiObject.GetAttribute<NodeNameAttribute>;
+
+  if Assigned(NodeNameAttribute) then
+    Result := NodeNameAttribute.Name
+  else if RttiObject is TRttiStructuredType then
+    Result := RttiObject.Name.Substring(1)
+  else
+    Result := RttiObject.Name;
+end;
+
 procedure TXMLSerializerWriter.Serialize(const Writer: TXMLWriter; const &Object: TObject);
 begin
   WriteNode(Writer, FContext.GetType(&Object.ClassType), &Object);
@@ -316,20 +331,19 @@ end;
 
 procedure TXMLSerializerWriter.WriteNode(const Writer: TXMLWriter; const &Type: TRttiType; const &Object: TObject);
 begin
-  var NodeName: String;
-  var NodeNameAttribute := &Type.GetAttribute<NodeNameAttribute>;
-
-  if Assigned(NodeNameAttribute) then
-    NodeName := NodeNameAttribute.Name
-  else
-    NodeName := &Type.Name.SubString(1);
+  var NodeName := GetNodeName(&Type);
 
   Writer.WriteStartNode(NodeName);
 
-  for var AProperty in &Type.GetProperties do
-    WriteProperty(Writer, AProperty, &Object);
+  WriteProperties(Writer, &Type, &Object);
 
   Writer.WriteEndNode(NodeName);
+end;
+
+procedure TXMLSerializerWriter.WriteProperties(const Writer: TXMLWriter; const &Type: TRttiType; const &Object: TObject);
+begin
+  for var AProperty in &Type.GetProperties do
+    WriteProperty(Writer, AProperty, &Object);
 end;
 
 procedure TXMLSerializerWriter.WriteProperty(const Writer: TXMLWriter; const &Property: TRttiProperty; const &Object: TObject);
@@ -372,7 +386,7 @@ var
   end;
 
 begin
-  var PropertyName := &Property.Name;
+  var PropertyName := GetNodeName(&Property);
   PropertyValue := &Property.GetValue(&Object);
 
   if (PropertyValue.Kind in [tkString, tkLString, tkUString, tkWideString]) and PropertyValue.AsString.IsEmpty then
@@ -381,7 +395,10 @@ begin
   begin
     Writer.WriteStartNode(PropertyName);
 
-    WriteValue;
+    if PropertyValue.IsObject then
+      WriteProperties(Writer, &Property.PropertyType, PropertyValue.AsObject)
+    else
+      WriteValue;
 
     Writer.WriteEndNode(PropertyName);
   end;
