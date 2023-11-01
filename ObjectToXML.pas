@@ -103,7 +103,7 @@ type
 
     procedure WriteNode(const Writer: TXMLWriter; const &Type: TRttiType; const &Object: TObject);
     procedure WriteProperties(const Writer: TXMLWriter; const &Type: TRttiType; const &Object: TObject);
-    procedure WriteProperty(const Writer: TXMLWriter; const &Property: TRttiProperty; const &Object: TObject);
+    procedure WriteProperty(const Writer: TXMLWriter; const &Property: TRttiInstanceProperty; const &Object: TObject);
   public
     constructor Create;
 
@@ -122,6 +122,8 @@ type
   end;
 
 implementation
+
+uses System.TypInfo;
 
 { TObjectToXML }
 
@@ -343,10 +345,11 @@ end;
 procedure TXMLSerializerWriter.WriteProperties(const Writer: TXMLWriter; const &Type: TRttiType; const &Object: TObject);
 begin
   for var AProperty in &Type.GetProperties do
-    WriteProperty(Writer, AProperty, &Object);
+    if AProperty.Visibility = mvPublished then
+      WriteProperty(Writer, AProperty as TRttiInstanceProperty, &Object);
 end;
 
-procedure TXMLSerializerWriter.WriteProperty(const Writer: TXMLWriter; const &Property: TRttiProperty; const &Object: TObject);
+procedure TXMLSerializerWriter.WriteProperty(const Writer: TXMLWriter; const &Property: TRttiInstanceProperty; const &Object: TObject);
 var
   PropertyValue: TValue;
 
@@ -389,19 +392,20 @@ begin
   var PropertyName := GetNodeName(&Property);
   PropertyValue := &Property.GetValue(&Object);
 
-  if (PropertyValue.Kind in [tkString, tkLString, tkUString, tkWideString]) and PropertyValue.AsString.IsEmpty then
-    Writer.WriteEmptyNode(PropertyName)
-  else
-  begin
-    Writer.WriteStartNode(PropertyName);
-
-    if PropertyValue.IsObject then
-      WriteProperties(Writer, &Property.PropertyType, PropertyValue.AsObject)
+  if IsStoredProp(&Object, &Property.PropInfo) then
+    if (PropertyValue.Kind in [tkString, tkLString, tkUString, tkWideString]) and PropertyValue.AsString.IsEmpty then
+      Writer.WriteEmptyNode(PropertyName)
     else
-      WriteValue;
+    begin
+      Writer.WriteStartNode(PropertyName);
 
-    Writer.WriteEndNode(PropertyName);
-  end;
+      if PropertyValue.IsObject then
+        WriteProperties(Writer, &Property.PropertyType, PropertyValue.AsObject)
+      else
+        WriteValue;
+
+      Writer.WriteEndNode(PropertyName);
+    end;
 end;
 
 { NumberSeparatorAttribute }

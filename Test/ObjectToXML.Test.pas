@@ -83,6 +83,10 @@ type
     procedure WhenAPropertyAsTheNodeNameAttributeMustWriteTheXMLWithThisNodeName;
     [Test]
     procedure WhenTheObjectAsAPropertyThatIsAnotherObjectMustWriteTheXMLAsExpected;
+    [Test]
+    procedure OnlyThePublishedPropertiesMustBeWritenInTheXML;
+    [Test]
+    procedure WhenThePropertyHasTheStoredAttributeMustOnlyGeneratedInXMLIfIsStored;
   end;
 
 {$M+}
@@ -164,6 +168,23 @@ type
     FAnotherObject: TObjectPropertyWithNodeName;
   published
     property AnotherObject: TObjectPropertyWithNodeName read FAnotherObject write FAnotherObject;
+  end;
+
+  TObjectWithPublicProperty = class
+  private
+    FPublicProperty: Integer;
+  public
+    property PublicProperty: Integer read FPublicProperty write FPublicProperty;
+  end;
+
+  TObjectWithStoredProperty = class
+  private
+    FIsStoredProperty: Boolean;
+    FStoredProperty: Integer;
+  public
+    property IsStoredProperty: Boolean read FIsStoredProperty write FIsStoredProperty;
+  published
+    property StoredProperty: Integer read FStoredProperty write FStoredProperty stored FIsStoredProperty;
   end;
 
 implementation
@@ -304,6 +325,17 @@ end;
 
 { TXMLSerializerWriterTest }
 
+procedure TXMLSerializerWriterTest.OnlyThePublishedPropertiesMustBeWritenInTheXML;
+begin
+  var AnObject := TObjectWithPublicProperty.Create;
+
+  FXMLSerializerWriter.Serialize(FXMLWriter, AnObject);
+
+  Assert.AreEqual('<ObjectWithPublicProperty></ObjectWithPublicProperty>', FStringWriter.ToString);
+
+  AnObject.Free;
+end;
+
 procedure TXMLSerializerWriterTest.Setup;
 begin
   FStringWriter := TStringWriter.Create;
@@ -443,6 +475,17 @@ begin
   FXMLSerializerWriter.Serialize(FXMLWriter, AnObject);
 
   Assert.AreEqual(Format('<ObjectNumberSeparator><Value>%s</Value></ObjectNumberSeparator>', [FormatFloat('#,0.0', AnObject.Value, AFormat)]), FStringWriter.ToString);
+
+  AnObject.Free;
+end;
+
+procedure TXMLSerializerWriterTest.WhenThePropertyHasTheStoredAttributeMustOnlyGeneratedInXMLIfIsStored;
+begin
+  var AnObject := TObjectWithStoredProperty.Create;
+
+  FXMLSerializerWriter.Serialize(FXMLWriter, AnObject);
+
+  Assert.AreEqual('<ObjectWithStoredProperty></ObjectWithStoredProperty>', FStringWriter.ToString);
 
   AnObject.Free;
 end;
